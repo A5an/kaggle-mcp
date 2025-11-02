@@ -2,12 +2,35 @@ import { metorial, z } from '@metorial/mcp-server-sdk';
 
 /**
  * Kaggle MCP Server
- * Provides tools for interacting with Kaggle API via CLI
+ * Provides tools for interacting with Kaggle REST API directly
  */
 
 interface Config {
   kaggleUsername: string;
   kaggleKey: string;
+}
+
+// Kaggle API base URL
+const KAGGLE_API_BASE = 'https://www.kaggle.com/api/v1';
+
+// Helper function to make authenticated requests to Kaggle API
+async function kaggleApiRequest(endpoint: string, config: Config, options: RequestInit = {}) {
+  const auth = Buffer.from(`${config.kaggleUsername}:${config.kaggleKey}`).toString('base64');
+
+  const response = await fetch(`${KAGGLE_API_BASE}${endpoint}`, {
+    ...options,
+    headers: {
+      'Authorization': `Basic ${auth}`,
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Kaggle API error: ${response.status} ${response.statusText}`);
+  }
+
+  return response.json();
 }
 
 metorial.createServer<Config>(
@@ -17,9 +40,9 @@ metorial.createServer<Config>(
   },
   async (server, config) => {
     console.log('Kaggle MCP Server starting...');
-    console.log('Config received:', { 
-      hasUsername: !!config.kaggleUsername, 
-      hasKey: !!config.kaggleKey 
+    console.log('Config received:', {
+      hasUsername: !!config.kaggleUsername,
+      hasKey: !!config.kaggleKey
     });
 
     /**
@@ -38,11 +61,6 @@ metorial.createServer<Config>(
       async ({ query }) => {
         try {
           console.log(`Searching datasets for: ${query}`);
-          
-          // Import Node.js modules dynamically
-          const { exec } = await import('node:child_process');
-          const { promisify } = await import('node:util');
-          const execAsync = promisify(exec);
 
           if (!config.kaggleUsername || !config.kaggleKey) {
             return {
@@ -57,46 +75,25 @@ metorial.createServer<Config>(
             };
           }
 
-          const env = {
-            ...process.env,
-            KAGGLE_USERNAME: config.kaggleUsername,
-            KAGGLE_KEY: config.kaggleKey
-          };
-
-          const command = `kaggle datasets list -s "${query}" --json`;
-          console.log(`Executing: ${command}`);
-
-          const { stdout, stderr } = await execAsync(command, { 
-            env,
-            timeout: 60000 // 1 minute timeout
+          // Use Kaggle REST API
+          const searchParams = new URLSearchParams({
+            search: query,
+            sortBy: 'hottest',
+            size: 'all',
+            filetype: 'all',
+            license: 'all'
           });
 
-          if (stderr && stderr.includes('error')) {
-            throw new Error(stderr);
-          }
+          const datasets = await kaggleApiRequest(`/datasets/list?${searchParams}`, config);
 
-          if (!stdout.trim()) {
-            return {
-              content: [
-                {
-                  type: 'text' as const,
-                  text: JSON.stringify({
-                    message: "No datasets found matching the query.",
-                    results: []
-                  }, null, 2)
-                }
-              ]
-            };
-          }
-
-          const datasets = JSON.parse(stdout);
           const limitedResults = datasets.slice(0, 10).map((ds: any) => ({
             ref: ds.ref || 'N/A',
             title: ds.title || 'N/A',
             subtitle: ds.subtitle || 'N/A',
             downloadCount: ds.downloadCount || 0,
             lastUpdated: ds.lastUpdated || 'N/A',
-            usabilityRating: ds.usabilityRating || 'N/A'
+            usabilityRating: ds.usabilityRating || 'N/A',
+            url: `https://www.kaggle.com/datasets/${ds.ref}`
           }));
 
           return {
@@ -110,7 +107,7 @@ metorial.createServer<Config>(
               }
             ]
           };
-          
+
         } catch (error: any) {
           console.error(`Error searching datasets: ${error.message}`);
           return {
@@ -135,22 +132,16 @@ metorial.createServer<Config>(
       'download_kaggle_dataset',
       {
         title: 'Download Kaggle Dataset',
-        description: 'Download and unzip files for a specific Kaggle dataset.',
+        description: 'Get download information for a specific Kaggle dataset.',
         inputSchema: {
           dataset_ref: z.string()
             .regex(/^[\w\-\.]+\/[\w\-\.]+$/, 'Dataset reference must be in format "username/dataset-name"')
-            .describe('Dataset reference in format "username/dataset-name"'),
-          download_path: z.string().optional().describe('Optional download path')
+            .describe('Dataset reference in format "username/dataset-name"')
         }
       },
-      async ({ dataset_ref, download_path }) => {
+      async ({ dataset_ref }) => {
         try {
-          console.log(`Downloading dataset: ${dataset_ref}`);
-          
-          // Import Node.js modules dynamically
-          const { exec } = await import('node:child_process');
-          const { promisify } = await import('node:util');
-          const execAsync = promisify(exec);
+          console.log(`Getting dataset info: ${dataset_ref}`);
 
           if (!config.kaggleUsername || !config.kaggleKey) {
             return {
@@ -165,20 +156,12 @@ metorial.createServer<Config>(
             };
           }
 
-          const env = {
-            ...process.env,
-            KAGGLE_USERNAME: config.kaggleUsername,
-            KAGGLE_KEY: config.kaggleKey
-          };
+          // Get dataset metadata via API
+          const [owner, datasetName] = dataset_ref.split('/');
+          const datasetInfo = await kaggleApiRequest(`/datasets/view/${owner}/${datasetName}`, config);
 
-          const downloadPath = download_path || `./datasets/${dataset_ref.split('/')[1]}`;
-          const command = `kaggle datasets download ${dataset_ref} -p ${downloadPath} --unzip`;
-          console.log(`Executing: ${command}`);
-
-          const { stdout, stderr } = await execAsync(command, { 
-            env,
-            timeout: 300000 // 5 minute timeout
-          });
+          // Get dataset files list
+          const files = await kaggleApiRequest(`/datasets/list/${owner}/${datasetName}/files`, config);
 
           return {
             content: [
@@ -186,19 +169,26 @@ metorial.createServer<Config>(
                 type: 'text' as const,
                 text: JSON.stringify({
                   success: true,
-                  message: `Successfully downloaded dataset '${dataset_ref}'`,
+                  message: `Dataset information retrieved for '${dataset_ref}'`,
                   dataset_ref: dataset_ref,
-                  download_path: downloadPath,
-                  stdout: stdout,
-                  stderr: stderr
+                  title: datasetInfo.title,
+                  description: datasetInfo.description,
+                  downloadCount: datasetInfo.downloadCount,
+                  files: files.map((file: any) => ({
+                    name: file.name,
+                    size: file.totalBytes,
+                    creationDate: file.creationDate
+                  })),
+                  downloadUrl: `https://www.kaggle.com/datasets/${dataset_ref}/download`,
+                  note: "Use the downloadUrl to download files directly"
                 }, null, 2)
               }
             ]
           };
-          
+
         } catch (error: any) {
-          console.error(`Error downloading dataset: ${error.message}`);
-          
+          console.error(`Error getting dataset info: ${error.message}`);
+
           if (error.message.includes('404')) {
             return {
               content: [
@@ -211,13 +201,13 @@ metorial.createServer<Config>(
               ]
             };
           }
-          
+
           return {
             content: [
               {
                 type: 'text' as const,
                 text: JSON.stringify({
-                  error: `Error downloading dataset: ${error.message}`
+                  error: `Error getting dataset info: ${error.message}`
                 })
               }
             ]
@@ -243,11 +233,6 @@ metorial.createServer<Config>(
       async ({ query, status }) => {
         try {
           console.log(`Searching competitions for: ${query} (status: ${status || 'all'})`);
-          
-          // Import Node.js modules dynamically
-          const { exec } = await import('node:child_process');
-          const { promisify } = await import('node:util');
-          const execAsync = promisify(exec);
 
           if (!config.kaggleUsername || !config.kaggleKey) {
             return {
@@ -262,43 +247,33 @@ metorial.createServer<Config>(
             };
           }
 
-          const env = {
-            ...process.env,
-            KAGGLE_USERNAME: config.kaggleUsername,
-            KAGGLE_KEY: config.kaggleKey
-          };
-
-          let command = `kaggle competitions list --json`;
-          if (query && query.trim()) {
-            command = `kaggle competitions list -s "${query}" --json`;
-          }
-          console.log(`Executing: ${command}`);
-
-          const { stdout, stderr } = await execAsync(command, { 
-            env,
-            timeout: 60000 // 1 minute timeout
+          // Use Kaggle REST API
+          const searchParams = new URLSearchParams({
+            sortBy: 'latestDeadline'
           });
 
-          if (stderr && stderr.includes('error')) {
-            throw new Error(stderr);
+          if (query && query.trim()) {
+            searchParams.append('search', query);
           }
 
-          if (!stdout.trim()) {
-            return {
-              content: [
-                {
-                  type: 'text' as const,
-                  text: JSON.stringify({
-                    message: "No competitions found matching the query.",
-                    results: []
-                  }, null, 2)
-                }
-              ]
-            };
+          const competitions = await kaggleApiRequest(`/competitions/list?${searchParams}`, config);
+
+          // Filter by status if specified
+          let filteredCompetitions = competitions;
+          if (status && status !== 'all') {
+            const now = new Date();
+            filteredCompetitions = competitions.filter((comp: any) => {
+              const deadline = new Date(comp.deadline);
+              if (status === 'active') {
+                return deadline > now;
+              } else if (status === 'completed') {
+                return deadline <= now;
+              }
+              return true;
+            });
           }
 
-          const competitions = JSON.parse(stdout);
-          const limitedResults = competitions.slice(0, 10).map((comp: any) => ({
+          const limitedResults = filteredCompetitions.slice(0, 10).map((comp: any) => ({
             ref: comp.ref || 'N/A',
             title: comp.title || 'N/A',
             description: (comp.description || 'N/A').substring(0, 200) + '...',
@@ -306,7 +281,8 @@ metorial.createServer<Config>(
             deadline: comp.deadline || 'N/A',
             category: comp.category || 'N/A',
             reward: comp.reward || 'N/A',
-            teamCount: comp.teamCount || 0
+            teamCount: comp.teamCount || 0,
+            evaluationMetric: comp.evaluationMetric || 'N/A'
           }));
 
           return {
@@ -320,7 +296,7 @@ metorial.createServer<Config>(
               }
             ]
           };
-          
+
         } catch (error: any) {
           console.error(`Error searching competitions: ${error.message}`);
           return {
@@ -353,11 +329,6 @@ metorial.createServer<Config>(
       async ({ competition_id }) => {
         try {
           console.log(`Getting competition details for: ${competition_id}`);
-          
-          // Import Node.js modules dynamically
-          const { exec } = await import('node:child_process');
-          const { promisify } = await import('node:util');
-          const execAsync = promisify(exec);
 
           if (!config.kaggleUsername || !config.kaggleKey) {
             return {
@@ -372,67 +343,23 @@ metorial.createServer<Config>(
             };
           }
 
-          const env = {
-            ...process.env,
-            KAGGLE_USERNAME: config.kaggleUsername,
-            KAGGLE_KEY: config.kaggleKey
-          };
-
-          // Get competition list and find the specific competition
-          const command = `kaggle competitions list -s "${competition_id}" --json`;
-          console.log(`Executing: ${command}`);
-
-          const { stdout, stderr } = await execAsync(command, { 
-            env,
-            timeout: 60000 // 1 minute timeout
-          });
-
-          if (stderr && stderr.includes('error')) {
-            throw new Error(stderr);
-          }
-
-          if (!stdout.trim()) {
-            return {
-              content: [
-                {
-                  type: 'text' as const,
-                  text: JSON.stringify({
-                    error: `Competition '${competition_id}' not found`
-                  })
-                }
-              ]
-            };
-          }
-
-          const competitions = JSON.parse(stdout);
-          const competition = competitions.find((comp: any) => 
-            comp.ref === competition_id || comp.ref?.includes(competition_id)
-          ) || competitions[0]; // Fallback to first result
-
-          if (!competition) {
-            return {
-              content: [
-                {
-                  type: 'text' as const,
-                  text: JSON.stringify({
-                    error: `Competition '${competition_id}' not found`
-                  })
-                }
-              ]
-            };
-          }
+          // Use Kaggle REST API to get competition details
+          const competitionDetails = await kaggleApiRequest(`/competitions/${competition_id}`, config);
 
           const details = {
             id: competition_id,
-            title: competition.title || 'N/A',
-            description: competition.description || 'N/A',
-            evaluation_metric: competition.evaluationMetric || 'N/A',
-            deadline: competition.deadline || 'N/A',
-            category: competition.category || 'N/A',
-            reward: competition.reward || 'N/A',
-            team_count: competition.teamCount || 0,
-            user_has_entered: competition.userHasEntered || false,
-            url: `https://www.kaggle.com/competitions/${competition_id}`
+            title: competitionDetails.title || 'N/A',
+            description: competitionDetails.description || 'N/A',
+            evaluation_metric: competitionDetails.evaluationMetric || 'N/A',
+            deadline: competitionDetails.deadline || 'N/A',
+            category: competitionDetails.category || 'N/A',
+            reward: competitionDetails.reward || 'N/A',
+            team_count: competitionDetails.teamCount || 0,
+            user_has_entered: competitionDetails.userHasEntered || false,
+            url: `https://www.kaggle.com/competitions/${competition_id}`,
+            tags: competitionDetails.tags || [],
+            organizationName: competitionDetails.organizationName || 'N/A',
+            organizationDescription: competitionDetails.organizationDescription || 'N/A'
           };
 
           return {
@@ -443,9 +370,23 @@ metorial.createServer<Config>(
               }
             ]
           };
-          
+
         } catch (error: any) {
           console.error(`Error getting competition details: ${error.message}`);
+
+          if (error.message.includes('404')) {
+            return {
+              content: [
+                {
+                  type: 'text' as const,
+                  text: JSON.stringify({
+                    error: `Competition '${competition_id}' not found`
+                  })
+                }
+              ]
+            };
+          }
+
           return {
             content: [
               {
@@ -462,26 +403,20 @@ metorial.createServer<Config>(
 
     /**
      * Tool: download_competition_data
-     * Download competition data files
+     * Get competition data file information
      */
     server.registerTool(
       'download_competition_data',
       {
-        title: 'Download Competition Data',
-        description: 'Download all competition files including datasets, sample submissions, and descriptions.',
+        title: 'Get Competition Data Files',
+        description: 'Get information about competition data files available for download.',
         inputSchema: {
-          competition_id: z.string().min(1).max(100).describe('Competition identifier (e.g., "titanic")'),
-          download_path: z.string().optional().describe('Optional download path')
+          competition_id: z.string().min(1).max(100).describe('Competition identifier (e.g., "titanic")')
         }
       },
-      async ({ competition_id, download_path }) => {
+      async ({ competition_id }) => {
         try {
-          console.log(`Downloading competition data for: ${competition_id}`);
-          
-          // Import Node.js modules dynamically
-          const { exec } = await import('node:child_process');
-          const { promisify } = await import('node:util');
-          const execAsync = promisify(exec);
+          console.log(`Getting competition data files for: ${competition_id}`);
 
           if (!config.kaggleUsername || !config.kaggleKey) {
             return {
@@ -496,30 +431,16 @@ metorial.createServer<Config>(
             };
           }
 
-          const env = {
-            ...process.env,
-            KAGGLE_USERNAME: config.kaggleUsername,
-            KAGGLE_KEY: config.kaggleKey
-          };
+          // Use Kaggle REST API to get competition data files
+          const files = await kaggleApiRequest(`/competitions/data/list/${competition_id}`, config);
 
-          const downloadPath = download_path || `./competitions/${competition_id}`;
-          const command = `kaggle competitions download ${competition_id} -p ${downloadPath}`;
-          console.log(`Executing: ${command}`);
-
-          const { stdout, stderr } = await execAsync(command, { 
-            env,
-            timeout: 300000 // 5 minute timeout
-          });
-
-          // List downloaded files
-          const listCommand = `find ${downloadPath} -type f -name "*.csv" -o -name "*.zip" -o -name "*.txt" | head -20`;
-          let fileList = [];
-          try {
-            const { stdout: listOutput } = await execAsync(listCommand, { env, timeout: 10000 });
-            fileList = listOutput.trim().split('\n').filter(f => f.trim());
-          } catch (e) {
-            // Ignore file listing errors
-          }
+          const fileInfo = files.map((file: any) => ({
+            name: file.name,
+            size: file.totalBytes,
+            creationDate: file.creationDate,
+            description: file.description || 'N/A',
+            url: file.url
+          }));
 
           return {
             content: [
@@ -528,19 +449,18 @@ metorial.createServer<Config>(
                 text: JSON.stringify({
                   success: true,
                   competition_id: competition_id,
-                  download_path: downloadPath,
-                  downloaded_files: fileList,
-                  file_count: fileList.length,
-                  stdout: stdout,
-                  stderr: stderr
+                  files: fileInfo,
+                  file_count: fileInfo.length,
+                  downloadUrl: `https://www.kaggle.com/competitions/${competition_id}/data`,
+                  note: "Use the Kaggle website or API to download actual files"
                 }, null, 2)
               }
             ]
           };
-          
+
         } catch (error: any) {
-          console.error(`Error downloading competition data: ${error.message}`);
-          
+          console.error(`Error getting competition data files: ${error.message}`);
+
           if (error.message.includes('403') || error.message.includes('Forbidden')) {
             return {
               content: [
@@ -550,7 +470,7 @@ metorial.createServer<Config>(
                     error: `Access denied for competition '${competition_id}'. You may need to accept the competition rules first.`,
                     solutions: [
                       `Go to https://www.kaggle.com/competitions/${competition_id} and accept the competition rules`,
-                      "Join the competition first before downloading data",
+                      "Join the competition first before accessing data",
                       "Use an accessible competition like 'titanic' instead"
                     ]
                   })
@@ -558,13 +478,26 @@ metorial.createServer<Config>(
               ]
             };
           }
-          
+
+          if (error.message.includes('404')) {
+            return {
+              content: [
+                {
+                  type: 'text' as const,
+                  text: JSON.stringify({
+                    error: `Competition '${competition_id}' not found or has no data files`
+                  })
+                }
+              ]
+            };
+          }
+
           return {
             content: [
               {
                 type: 'text' as const,
                 text: JSON.stringify({
-                  error: `Error downloading competition data: ${error.message}`
+                  error: `Error getting competition data files: ${error.message}`
                 })
               }
             ]
@@ -581,7 +514,7 @@ metorial.createServer<Config>(
       'submit_to_competition',
       {
         title: 'Submit to Competition',
-        description: 'Submit a CSV file to a Kaggle competition.',
+        description: 'Submit a CSV file to a Kaggle competition using the REST API.',
         inputSchema: {
           competition_id: z.string().min(1).max(100).describe('Competition identifier (e.g., "titanic")'),
           file_content: z.string().describe('CSV file content to submit'),
@@ -592,12 +525,6 @@ metorial.createServer<Config>(
       async ({ competition_id, file_content, filename, message }) => {
         try {
           console.log(`Submitting to competition: ${competition_id}`);
-          
-          // Import Node.js modules dynamically
-          const { exec } = await import('node:child_process');
-          const { promisify } = await import('node:util');
-          const { writeFile, mkdir } = await import('node:fs/promises');
-          const execAsync = promisify(exec);
 
           if (!config.kaggleUsername || !config.kaggleKey) {
             return {
@@ -612,35 +539,30 @@ metorial.createServer<Config>(
             };
           }
 
-          const env = {
-            ...process.env,
-            KAGGLE_USERNAME: config.kaggleUsername,
-            KAGGLE_KEY: config.kaggleKey
-          };
-
-          // Create temporary directory and file
-          const tempDir = `./temp_submissions`;
-          const tempFilePath = `${tempDir}/${filename}`;
-          
-          await mkdir(tempDir, { recursive: true });
-          await writeFile(tempFilePath, file_content);
-
           const submissionMessage = message || "Submission via ML Engineer Agent";
-          const command = `kaggle competitions submit ${competition_id} -f ${tempFilePath} -m "${submissionMessage}"`;
-          console.log(`Executing: ${command}`);
 
-          const { stdout, stderr } = await execAsync(command, { 
-            env,
-            timeout: 120000 // 2 minute timeout
+          // Create form data for submission
+          const formData = new FormData();
+          const blob = new Blob([file_content], { type: 'text/csv' });
+          formData.append('file', blob, filename);
+          formData.append('submissionDescription', submissionMessage);
+
+          // Submit via Kaggle API
+          const auth = Buffer.from(`${config.kaggleUsername}:${config.kaggleKey}`).toString('base64');
+
+          const response = await fetch(`${KAGGLE_API_BASE}/competitions/submissions/submit/${competition_id}`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Basic ${auth}`,
+            },
+            body: formData
           });
 
-          // Clean up temp file
-          try {
-            const { unlink } = await import('node:fs/promises');
-            await unlink(tempFilePath);
-          } catch (e) {
-            // Ignore cleanup errors
+          if (!response.ok) {
+            throw new Error(`Submission failed: ${response.status} ${response.statusText}`);
           }
+
+          const result = await response.json();
 
           return {
             content: [
@@ -651,15 +573,35 @@ metorial.createServer<Config>(
                   competition_id: competition_id,
                   submission_file: filename,
                   message: submissionMessage,
-                  stdout: stdout,
-                  stderr: stderr
+                  submission_id: result.submissionId || 'N/A',
+                  status: result.status || 'submitted',
+                  url: `https://www.kaggle.com/competitions/${competition_id}/submissions`
                 }, null, 2)
               }
             ]
           };
-          
+
         } catch (error: any) {
           console.error(`Error submitting to competition: ${error.message}`);
+
+          if (error.message.includes('403')) {
+            return {
+              content: [
+                {
+                  type: 'text' as const,
+                  text: JSON.stringify({
+                    error: `Access denied for competition '${competition_id}'. You may need to join the competition first.`,
+                    solutions: [
+                      `Go to https://www.kaggle.com/competitions/${competition_id} and join the competition`,
+                      "Accept the competition rules before submitting",
+                      "Ensure you have submission permissions"
+                    ]
+                  })
+                }
+              ]
+            };
+          }
+
           return {
             content: [
               {
