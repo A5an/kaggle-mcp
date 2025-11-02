@@ -4,15 +4,21 @@
 
 If you're experiencing module loading issues on Metorial, try these approaches:
 
-### Option 1: Use the deploy.json configuration
+### Option 1: Standalone Server (RECOMMENDED)
+1. Use `standalone-server.js` - a single file with no module dependencies
+2. Rename `standalone-package.json` to `package.json` before deployment
+3. Set entry point to `standalone-server.js`
+4. This completely avoids module resolution issues
+
+### Option 2: Use the deploy.json configuration
 1. Rename `deploy.json` to `package.json` before deployment
 2. This includes all dependencies and a postinstall build step
 
-### Option 2: Use the simple server.js entry point
+### Option 3: Use the simple server.js entry point
 1. Set the main entry point to `server.js` in your deployment configuration
 2. This bypasses the complex entry point logic
 
-### Option 3: Pre-build approach
+### Option 4: Pre-build approach
 1. Run `npm run build` locally
 2. Deploy the entire project including the `dist/` folder
 3. Use `node dist/server.js` as the start command
@@ -29,11 +35,13 @@ NODE_ENV=production
 ## Troubleshooting
 
 ### Module Not Found Errors
-- Ensure TypeScript is compiled before running
+- **SOLUTION**: Use `standalone-server.js` - it has no module dependencies
+- Ensure TypeScript is compiled before running (if using TypeScript version)
 - Check that all dependencies are installed
 - Verify the entry point file exists
 
 ### Import/Export Issues
+- **SOLUTION**: Use `standalone-server.js` - it's a single file with no imports
 - The project uses CommonJS modules for better compatibility
 - All imports use relative paths without file extensions
 - TypeScript compiles to CommonJS format
