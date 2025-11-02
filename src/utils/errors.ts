@@ -1,4 +1,4 @@
-import { ErrorResponse } from '../types/kaggle.js';
+import { ErrorResponse } from '../types/kaggle';
 
 // Error categories
 export enum ErrorCategory {

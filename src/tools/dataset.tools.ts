@@ -1,11 +1,11 @@
-import { KaggleService } from '../services/kaggle.service.js';
+import { KaggleService } from '../services/kaggle.service';
 import { 
   DatasetSearchSchema, 
   DatasetDownloadSchema,
   validateDatasetSearch,
   validateDatasetDownload 
-} from '../utils/validation.js';
-import { MCPTool } from '../types/kaggle.js';
+} from '../utils/validation';
+import { MCPTool } from '../types/kaggle';
 
 export function createDatasetTools(kaggleService: KaggleService): MCPTool[] {
   return [

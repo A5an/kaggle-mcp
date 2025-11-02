@@ -113,6 +113,11 @@ The Docker container can be deployed to any cloud platform that supports contain
 - **Azure Container Instances**: Deploy with `az container create`
 - **Heroku**: Use `heroku container:push` and `heroku container:release`
 - **Railway/Render**: Connect your GitHub repo for automatic deployments
+- **Metorial**: See [DEPLOYMENT.md](./DEPLOYMENT.md) for specific instructions
+
+## Deployment Troubleshooting
+
+If you encounter module loading issues during deployment, see the [DEPLOYMENT.md](./DEPLOYMENT.md) guide for platform-specific solutions and troubleshooting steps.
 
 ## API Endpoints
 

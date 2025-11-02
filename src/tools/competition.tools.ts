@@ -1,11 +1,11 @@
-import { KaggleService } from '../services/kaggle.service.js';
+import { KaggleService } from '../services/kaggle.service';
 import { 
   CompetitionSearchSchema, 
   CompetitionDownloadSchema,
   validateCompetitionSearch,
   validateCompetitionDownload 
-} from '../utils/validation.js';
-import { MCPTool } from '../types/kaggle.js';
+} from '../utils/validation';
+import { MCPTool } from '../types/kaggle';
 
 export function createCompetitionTools(kaggleService: KaggleService): MCPTool[] {
   return [

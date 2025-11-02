@@ -5,11 +5,11 @@ import { Server } from '@modelcontextprotocol/sdk/server/index';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types';
 
-import { KaggleService } from './services/kaggle.service.js';
-import { createDatasetTools } from './tools/dataset.tools.js';
-import { createCompetitionTools } from './tools/competition.tools.js';
-import { validateEnvironment, EnvironmentConfig } from './utils/validation.js';
-import { logError, handleApiError } from './utils/errors.js';
+import { KaggleService } from './services/kaggle.service';
+import { createDatasetTools } from './tools/dataset.tools';
+import { createCompetitionTools } from './tools/competition.tools';
+import { validateEnvironment, EnvironmentConfig } from './utils/validation';
+import { logError, handleApiError } from './utils/errors';
 
 // Load environment variables
 dotenv.config();

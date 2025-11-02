@@ -2,12 +2,12 @@
   "name": "kaggle-mcp-typescript",
   "version": "1.0.0",
   "description": "TypeScript MCP Server for Kaggle CLI integration",
-  "type": "module",
-  "main": "dist/server.js",
+  "main": "index.js",
   "scripts": {
-    "dev": "ts-node-dev --respawn --transpile-only --esm src/server.ts",
+    "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
     "build": "tsc",
-    "start": "node dist/server.js",
+    "start": "node index.js",
+    "start:compiled": "node dist/server.js",
     "clean": "rm -rf dist"
   },
   "keywords": ["mcp", "kaggle", "typescript", "ai", "machine-learning"],
@@ -18,10 +18,11 @@
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
     "@modelcontextprotocol/sdk": "^0.4.0",
-    "zod": "^3.22.4"
+    "zod": "^3.22.4",
+    "ts-node": "^10.9.1",
+    "typescript": "^5.3.3"
   },
   "devDependencies": {
-    "typescript": "^5.3.3",
     "ts-node-dev": "^2.0.0",
     "@types/node": "^20.10.5",
     "@types/express": "^4.17.21",

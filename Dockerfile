@@ -17,14 +17,17 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
-# Install Node.js dependencies
-RUN npm ci --only=production
+# Install Node.js dependencies (including dev dependencies for build)
+RUN npm ci
 
 # Copy source code
 COPY . .
 
 # Build TypeScript application
 RUN npm run build
+
+# Remove dev dependencies after build
+RUN npm prune --production
 
 # Set environment variables (placeholders to be overridden at runtime)
 ENV KAGGLE_USERNAME=""
@@ -43,4 +46,4 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD curl -f http://localhost:8080/health || exit 1
 
 # Start the application
-CMD ["npm", "start"]
+CMD ["node", "index.js"]
