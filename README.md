@@ -19,6 +19,10 @@ A TypeScript-based Model Context Protocol (MCP) server that wraps the Kaggle CLI
 - Python 3 and pip (for Kaggle CLI)
 - Kaggle API credentials
 
+### Important Notes
+
+This project uses ES modules (`"type": "module"` in package.json) for compatibility with cloud deployment platforms. All imports use `.js` extensions even in TypeScript files, as required by ES module standards.
+
 ### Local Development
 
 1. **Clone and install dependencies:**

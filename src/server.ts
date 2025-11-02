@@ -5,11 +5,11 @@ import { Server } from '@modelcontextprotocol/sdk/server/index';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types';
 
-import { KaggleService } from './services/kaggle.service';
-import { createDatasetTools } from './tools/dataset.tools';
-import { createCompetitionTools } from './tools/competition.tools';
-import { validateEnvironment, EnvironmentConfig } from './utils/validation';
-import { logError, handleApiError } from './utils/errors';
+import { KaggleService } from './services/kaggle.service.js';
+import { createDatasetTools } from './tools/dataset.tools.js';
+import { createCompetitionTools } from './tools/competition.tools.js';
+import { validateEnvironment, EnvironmentConfig } from './utils/validation.js';
+import { logError, handleApiError } from './utils/errors.js';
 
 // Load environment variables
 dotenv.config();
@@ -32,7 +32,7 @@ app.use(cors());
 app.use(express.json());
 
 // Health check endpoint
-app.get('/health', async (req, res) => {
+app.get('/health', async (_req, res) => {
     try {
         const kaggleService = new KaggleService(config.KAGGLE_USERNAME, config.KAGGLE_KEY);
         const credentialsValid = await kaggleService.validateCredentials();

@@ -6,7 +6,7 @@ import {
   DatasetSearchResult, 
   CompetitionSearchResult, 
   DownloadResult 
-} from '../types/kaggle';
+} from '../types/kaggle.js';
 
 const execAsync = promisify(exec);
 
