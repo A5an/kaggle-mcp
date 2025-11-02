@@ -1,0 +1,4 @@
+{
+  "name": "Kaggle MCP Server",
+  "runtime": "typescript.deno"
+}
