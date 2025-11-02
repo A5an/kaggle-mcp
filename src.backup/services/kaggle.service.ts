@@ -1,11 +1,11 @@
 import { exec } from 'child_process';
 import { promisify } from 'util';
-import {
-  KaggleService as IKaggleService,
-  CommandResult,
-  DatasetSearchResult,
-  CompetitionSearchResult,
-  DownloadResult
+import { 
+  KaggleService as IKaggleService, 
+  CommandResult, 
+  DatasetSearchResult, 
+  CompetitionSearchResult, 
+  DownloadResult 
 } from '../types/kaggle';
 
 const execAsync = promisify(exec);
@@ -41,7 +41,7 @@ export class KaggleService implements IKaggleService {
       const commandString = command.join(' ');
       console.log(`Executing Kaggle command: ${commandString}`);
 
-      const { stdout, stderr } = await execAsync(commandString, {
+      const { stdout, stderr } = await execAsync(commandString, { 
         env,
         timeout: 300000 // 5 minute timeout
       });
@@ -71,7 +71,7 @@ export class KaggleService implements IKaggleService {
 
       // Try to execute a simple command to validate credentials
       const result = await this.executeCommand(['kaggle', 'datasets', 'list', '--page-size', '1']);
-
+      
       if (result.success) {
         console.log('Kaggle credentials validated successfully');
         return true;
@@ -116,7 +116,7 @@ export class KaggleService implements IKaggleService {
   async downloadDataset(ref: string, path?: string): Promise<DownloadResult> {
     // Create download directory if path is provided
     const downloadPath = path || `./datasets/${ref.split('/')[1]}`;
-
+    
     const command = ['kaggle', 'datasets', 'download', ref, '-p', downloadPath, '--unzip'];
     const result = await this.executeCommand(command);
 
@@ -173,7 +173,7 @@ export class KaggleService implements IKaggleService {
   async downloadCompetitionData(id: string, path?: string): Promise<DownloadResult> {
     // Create download directory if path is provided
     const downloadPath = path || `./competitions/${id}`;
-
+    
     const command = ['kaggle', 'competitions', 'download', id, '-p', downloadPath];
     const result = await this.executeCommand(command);
 

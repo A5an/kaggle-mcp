@@ -1,31 +1,23 @@
 {
-  "name": "kaggle-mcp-typescript",
+  "name": "kaggle-mcp-standalone",
   "version": "1.0.0",
-  "description": "TypeScript MCP Server for Kaggle CLI integration",
-  "main": "index.js",
+  "description": "Standalone Kaggle MCP Server - Single file solution",
+  "main": "standalone-server.js",
   "scripts": {
-    "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
-    "build": "tsc",
-    "start": "node index.js",
-    "start:compiled": "node dist/server.js",
-    "clean": "rm -rf dist"
+    "start": "node standalone-server.js",
+    "dev": "node standalone-server.js",
+    "build": "echo 'No build needed for standalone version'"
   },
-  "keywords": ["mcp", "kaggle", "typescript", "ai", "machine-learning"],
+  "keywords": ["mcp", "kaggle", "standalone", "ai", "machine-learning"],
   "author": "",
   "license": "MIT",
   "dependencies": {
     "express": "^4.18.2",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
-    "@modelcontextprotocol/sdk": "^0.4.0",
-    "zod": "^3.22.4",
-    "ts-node": "^10.9.1",
-    "typescript": "^5.3.3"
+    "zod": "^3.22.4"
   },
-  "devDependencies": {
-    "ts-node-dev": "^2.0.0",
-    "@types/node": "^20.10.5",
-    "@types/express": "^4.17.21",
-    "@types/cors": "^2.8.17"
+  "engines": {
+    "node": ">=18.0.0"
   }
 }
