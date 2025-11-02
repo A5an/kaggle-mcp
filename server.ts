@@ -13,9 +13,36 @@ interface Config {
 // Kaggle API base URL
 const KAGGLE_API_BASE = 'https://www.kaggle.com/api/v1';
 
+// Helper function to encode string to base64 (browser-compatible)
+function encodeBase64(str: string): string {
+  if (typeof btoa !== 'undefined') {
+    // Browser environment
+    return btoa(str);
+  } else if (typeof Buffer !== 'undefined') {
+    // Node.js environment
+    return Buffer.from(str).toString('base64');
+  } else {
+    // Manual base64 encoding as fallback
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+    let result = '';
+    let i = 0;
+    while (i < str.length) {
+      const a = str.charCodeAt(i++);
+      const b = i < str.length ? str.charCodeAt(i++) : 0;
+      const c = i < str.length ? str.charCodeAt(i++) : 0;
+      const bitmap = (a << 16) | (b << 8) | c;
+      result += chars.charAt((bitmap >> 18) & 63) +
+        chars.charAt((bitmap >> 12) & 63) +
+        (i - 2 < str.length ? chars.charAt((bitmap >> 6) & 63) : '=') +
+        (i - 1 < str.length ? chars.charAt(bitmap & 63) : '=');
+    }
+    return result;
+  }
+}
+
 // Helper function to make authenticated requests to Kaggle API
 async function kaggleApiRequest(endpoint: string, config: Config, options: RequestInit = {}) {
-  const auth = Buffer.from(`${config.kaggleUsername}:${config.kaggleKey}`).toString('base64');
+  const auth = encodeBase64(`${config.kaggleUsername}:${config.kaggleKey}`);
 
   const response = await fetch(`${KAGGLE_API_BASE}${endpoint}`, {
     ...options,
@@ -541,29 +568,11 @@ metorial.createServer<Config>(
 
           const submissionMessage = message || "Submission via ML Engineer Agent";
 
-          // Create form data for submission
-          const formData = new FormData();
-          const blob = new Blob([file_content], { type: 'text/csv' });
-          formData.append('file', blob, filename);
-          formData.append('submissionDescription', submissionMessage);
+          // For edge runtime compatibility, we'll provide submission info
+          // instead of trying to upload files directly
+          const auth = encodeBase64(`${config.kaggleUsername}:${config.kaggleKey}`);
 
-          // Submit via Kaggle API
-          const auth = Buffer.from(`${config.kaggleUsername}:${config.kaggleKey}`).toString('base64');
-
-          const response = await fetch(`${KAGGLE_API_BASE}/competitions/submissions/submit/${competition_id}`, {
-            method: 'POST',
-            headers: {
-              'Authorization': `Basic ${auth}`,
-            },
-            body: formData
-          });
-
-          if (!response.ok) {
-            throw new Error(`Submission failed: ${response.status} ${response.statusText}`);
-          }
-
-          const result = await response.json();
-
+          // Return submission preparation info
           return {
             content: [
               {
@@ -573,9 +582,15 @@ metorial.createServer<Config>(
                   competition_id: competition_id,
                   submission_file: filename,
                   message: submissionMessage,
-                  submission_id: result.submissionId || 'N/A',
-                  status: result.status || 'submitted',
-                  url: `https://www.kaggle.com/competitions/${competition_id}/submissions`
+                  file_size: file_content.length,
+                  note: "Submission file prepared. Use Kaggle website to upload.",
+                  submission_url: `https://www.kaggle.com/competitions/${competition_id}/submit`,
+                  instructions: [
+                    "1. Save the file content as a CSV file",
+                    "2. Go to the competition submission page",
+                    "3. Upload the CSV file manually",
+                    "4. Add the submission message"
+                  ]
                 }, null, 2)
               }
             ]
