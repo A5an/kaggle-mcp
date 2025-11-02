@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  kaggle-mcp:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      - KAGGLE_USERNAME=${KAGGLE_USERNAME}
+      - KAGGLE_KEY=${KAGGLE_KEY}
+      - NODE_ENV=production
+    volumes:
+      - ./downloads:/app/datasets
+      - ./competitions:/app/competitions
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
